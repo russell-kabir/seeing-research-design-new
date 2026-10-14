@@ -1,0 +1,6 @@
+_site/
+site/
+.Rproj.user/
+.Rhistory
+.RData
+.DS_Store
