@@ -8,7 +8,7 @@
 # Leave CLINIC_URL empty to run in demo mode: posts then stay in this browser tab.
 # =============================================================================
 
-CLINIC_URL  <- ""          # paste the Apps Script web-app URL (ends in /exec) here
+CLINIC_URL  <- "https://script.google.com/macros/s/AKfycbyAGVoLPiyB9Sns8zzMsum48Vyzm_UsCBD4SyaNSBR-MFv4AY4XAfU2kWAppRdZzKFW/exec"          # paste the Apps Script web-app URL (ends in /exec) here
 CLINIC_CODE <- "kabirlab"  # must match BOARD_CODE in apps_script/clinic_board.gs
 CLINIC_MAX_CHARS <- 400
 
