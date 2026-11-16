@@ -8,6 +8,56 @@
   const tr = (sel, ms) => sel.transition().duration(ms == null ? DUR : ms).ease(ease);
   const fmt1 = d3.format("+.1f");
 
+  // ---------------------------------------------------------------------
+  // Language (English / 日本語 / both). R sends bilingual labels as "en ｜ ja".
+  // ---------------------------------------------------------------------
+  const SEP = " ｜ ";
+  function readLang() { try { return localStorage.getItem("srd-lang") || "both"; } catch (e) { return "both"; } }
+  ERL.lang = readLang();
+  function split(en, ja) {
+    if (ja != null) return [String(en), String(ja)];
+    const s = String(en == null ? "" : en), k = s.indexOf(SEP);
+    return k < 0 ? [s, s] : [s.slice(0, k), s.slice(k + SEP.length)];
+  }
+  ERL.t = function (en, ja) {
+    const [e, j] = split(en, ja);
+    if (e === j) return e;
+    return ERL.lang === "en" ? e : ERL.lang === "ja" ? j : e + " · " + j;
+  };
+  // Bilingual label on an SVG text selection, remembered so the language switch can relabel it.
+  function T(sel, en, ja) {
+    const [e, j] = split(en, ja);
+    sel.attr("data-en", e).attr("data-ja", j).text(ERL.t(e, j));
+    return sel;
+  }
+  function Td(sel, fn) { sel.each(function (d, i) { T(d3.select(this), fn(d, i)); }); return sel; }
+  ERL.T = T; ERL.Td = Td;
+  function relabelOptions(root) {
+    (root || document).querySelectorAll("select option").forEach((o) => {
+      if (!o.dataset.en && o.textContent.indexOf(SEP) >= 0) { const [e, j] = split(o.textContent); o.dataset.en = e; o.dataset.ja = j; }
+      if (o.dataset.en) o.textContent = ERL.t(o.dataset.en, o.dataset.ja);
+    });
+  }
+  const redraws = {};
+  ERL.onLang = (k, f) => { redraws[k] = f; };
+  ERL.setLang = function (l) {
+    ERL.lang = l;
+    try { localStorage.setItem("srd-lang", l); } catch (e) {}
+    const h = document.documentElement;
+    h.classList.remove("lang-en", "lang-ja", "lang-both");
+    h.classList.add("lang-" + l);
+    document.querySelectorAll("[data-en]:not(option)").forEach((el) => { el.textContent = ERL.t(el.dataset.en, el.dataset.ja); });
+    relabelOptions();
+    document.querySelectorAll(".lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === l));
+    Object.values(redraws).forEach((f) => { try { f(); } catch (e) { console.warn(e); } });
+    if (window.Shiny && Shiny.setInputValue) Shiny.setInputValue("lang", l);
+  };
+  // relabel <option>s whenever Shiny renders new selects
+  new MutationObserver((muts) => {
+    for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1 && (n.tagName === "SELECT" || n.tagName === "OPTION" || n.querySelector && n.querySelector("select"))) { relabelOptions(n.tagName === "OPTION" ? n.parentNode : n); }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener("DOMContentLoaded", () => { relabelOptions(); document.querySelectorAll(".lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === ERL.lang)); });
+
   function whenShiny(cb) {
     if (window.Shiny && Shiny.addCustomMessageHandler) cb();
     else setTimeout(() => whenShiny(cb), 40);
@@ -114,13 +164,13 @@
 
     yAxis(layer(inner, "yax"), y, iw, { grid: true });
     let yt = inner.select("text.ytitle");
-    if (yt.empty()) yt = inner.append("text").attr("class", "ax-title ytitle").attr("transform", `translate(-38,${ih / 2}) rotate(-90)`).attr("text-anchor", "middle").text("Test score");
+    if (yt.empty()) yt = inner.append("text").attr("class", "ax-title ytitle").attr("transform", `translate(-38,${ih / 2}) rotate(-90)`).attr("text-anchor", "middle").call((s) => T(s, "Test score", "得点"));
 
     // column labels
     const cl = layer(inner, "cols").selectAll("text").data(pl.cols, (d) => d);
     cl.exit().transition().duration(300).style("opacity", 0).remove();
     cl.enter().append("text").attr("class", "lbl-strong").attr("text-anchor", "middle").attr("y", ih + 28).style("opacity", 0)
-      .attr("x", (d) => x(d)).merge(cl).call((s) => tr(s).style("opacity", 1).attr("x", (d) => x(d)));
+      .attr("x", (d) => x(d)).merge(cl).call((s) => Td(s, (d) => d)).call((s) => tr(s).style("opacity", 1).attr("x", (d) => x(d)));
 
     // reference line (d1)
     const ref = layer(inner, "ref").selectAll("g").data(pl.refline ? [pl.refline] : []);
@@ -129,7 +179,7 @@
     re.append("line").attr("stroke", "currentColor").attr("class", "stroke-ink").attr("stroke-dasharray", "2 4").attr("opacity", 0.6);
     re.append("text").attr("class", "lbl").attr("text-anchor", "end");
     re.merge(ref).select("line").attr("x1", 0).attr("x2", iw).attr("y1", (d) => y(d.y)).attr("y2", (d) => y(d.y));
-    re.merge(ref).select("text").attr("x", iw).attr("y", (d) => y(d.y) - 6).text((d) => d.label);
+    re.merge(ref).select("text").attr("x", iw).attr("y", (d) => y(d.y) - 6).call((s) => Td(s, (d) => d.label));
 
     // dots
     const dots = [];
@@ -169,7 +219,7 @@
         .call((s) => tr(s).attr("x1", (p) => p[0] - 26).attr("x2", (p) => p[0] + 26).attr("y1", (p) => p[1]).attr("y2", (p) => p[1]));
     });
     mm.select("text").attr("class", (d) => "lbl fill-" + d.cls).attr("text-anchor", (d) => (d.cls === "ctrl" ? "end" : "start"))
-      .text((d) => d.name).call((s) => tr(s)
+      .call((s) => Td(s, (d) => d.name)).call((s) => tr(s)
         .attr("x", (d) => (d.cls === "ctrl" ? d.pts[0][0] - 32 : d.pts[d.pts.length - 1][0] + 32))
         .attr("y", (d) => (d.cls === "ctrl" ? d.pts[0][1] : d.pts[d.pts.length - 1][1]) + 4));
 
@@ -187,13 +237,13 @@
     const gm = ge.merge(ghost);
     gm.select("path").call((s) => tr(s).attr("d", (d) => (d.fx != null ? `M${d.fx},${d.fy} L${d.gx},${d.gy}` : `M${d.gx - 30},${d.gy} L${d.gx + 30},${d.gy}`)));
     gm.select("circle").call((s) => tr(s).attr("cx", (d) => d.gx).attr("cy", (d) => d.gy));
-    gm.select("text").text("without intervention").call((s) => tr(s).attr("x", (d) => d.gx).attr("y", (d) => d.gy + (pl.est >= 0 ? 22 : -14)));
+    gm.select("text").call((s) => T(s, "without intervention", "介入なしの場合")).call((s) => tr(s).attr("x", (d) => d.gx).attr("y", (d) => d.gy + (pl.est >= 0 ? 22 : -14)));
 
     // estimate bracket (what the design compares)
     const tPost = treat.means[treat.means.length - 1];
     const ctrl = pl.groups.find((gg) => gg.cls === "ctrl");
     const cmpY = tPost - pl.est;
-    const lab = "estimate " + fmt1(pl.est);
+    const lab = ERL.t("estimate ", "推定値 ") + fmt1(pl.est);
     const bx = gx + 46;
     bracket(inner, bx, y(cmpY), y(tPost), lab);
     let cmpLine = inner.select("line.cmp");
@@ -213,7 +263,7 @@
     const iv = layer(inner, "iv");
     if (iv.select("rect").empty()) {
       iv.append("rect").attr("class", "fill-treat-soft");
-      iv.append("text").attr("class", "lbl fill-treat").attr("text-anchor", "middle").text("intervention");
+      iv.append("text").attr("class", "lbl fill-treat").attr("text-anchor", "middle").call((s) => T(s, "intervention", "介入"));
     }
     iv.select("rect").attr("x", x(3.5)).attr("width", x(6.4) - x(3.5)).attr("y", 0).attr("height", ih).attr("opacity", 0.5);
     iv.select("text").attr("x", x(4.95)).attr("y", 14);
@@ -234,14 +284,15 @@
     tr(p1).attr("d", lp([pl.pre_line[0], [3.5, pl.pre_line[0][1] + (pl.pre_line[1][1] - pl.pre_line[0][1]) * 2.5 / 5]]));
     tr(p2).attr("d", lp([[3.5, pl.pre_line[0][1] + (pl.pre_line[1][1] - pl.pre_line[0][1]) * 2.5 / 5], pl.pre_line[1]]));
     tr(p3).attr("d", lp(pl.post_line));
-    tr(pre.select("text.cflab")).attr("x", x(6) + 8).attr("y", y(pl.pre_line[1][1]) + 4).text("projected trend");
+    T(pre.select("text.cflab"), "projected trend", "延長したトレンド");
+    tr(pre.select("text.cflab")).attr("x", x(6) + 8).attr("y", y(pl.pre_line[1][1]) + 4);
     const mp = layer(inner, "mpts").selectAll("circle").data(pl.means);
     mp.enter().append("circle").attr("r", 5.5).attr("cx", (d, i) => x(i + 1)).attr("cy", ih)
       .merge(mp).attr("class", (d, i) => (i >= 3 ? "fill-treat" : "fill-ink"))
       .call((s) => tr(s).attr("cx", (d, i) => x(i + 1)).attr("cy", (d) => y(d)));
-    bracket(inner, x(4) - 14, y(pl.jump.y0), y(pl.jump.y1), "level change " + fmt1(pl.jump.y1 - pl.jump.y0), -1);
+    bracket(inner, x(4) - 14, y(pl.jump.y0), y(pl.jump.y1), ERL.t("level change ", "水準の変化 ") + fmt1(pl.jump.y1 - pl.jump.y0), -1);
     let yt = inner.select("text.ytitle");
-    if (yt.empty()) inner.append("text").attr("class", "ax-title ytitle").attr("transform", `translate(-38,${ih / 2}) rotate(-90)`).attr("text-anchor", "middle").text("Test score (class mean, black/teal)");
+    if (yt.empty()) inner.append("text").attr("class", "ax-title ytitle").attr("transform", `translate(-38,${ih / 2}) rotate(-90)`).attr("text-anchor", "middle").call((s) => T(s, "Test score (class mean, black/teal)", "得点（クラス平均：黒／緑）"));
   }
 
   function drawRDD(g, pl) {
@@ -255,15 +306,15 @@
     xAxis(layer(inner, "xax").attr("transform", `translate(0,${ih})`), x);
     let xt = inner.select("text.xtitle");
     if (xt.empty()) {
-      inner.append("text").attr("class", "ax-title xtitle").attr("x", iw).attr("y", ih + 32).attr("text-anchor", "end").text("Diagnostic pretest score →");
-      inner.append("text").attr("class", "ax-title ytitle").attr("transform", `translate(-38,${ih / 2}) rotate(-90)`).attr("text-anchor", "middle").text("Posttest score");
+      inner.append("text").attr("class", "ax-title xtitle").attr("x", iw).attr("y", ih + 32).attr("text-anchor", "end").call((s) => T(s, "Diagnostic pretest score →", "診断用事前テストの得点 →"));
+      inner.append("text").attr("class", "ax-title ytitle").attr("transform", `translate(-38,${ih / 2}) rotate(-90)`).attr("text-anchor", "middle").call((s) => T(s, "Posttest score", "事後テストの得点"));
     }
     const cut = layer(inner, "cut");
     if (cut.select("line").empty()) {
       cut.append("rect").attr("class", "fill-treat-soft").attr("opacity", 0.45);
       cut.append("line").attr("class", "stroke-accent").attr("stroke-width", 1.5).attr("stroke-dasharray", "4 3");
-      cut.append("text").attr("class", "lbl fill-accent").attr("text-anchor", "middle").text("cutoff");
-      cut.append("text").attr("class", "lbl fill-treat sup").attr("text-anchor", "start").text("← extra support");
+      cut.append("text").attr("class", "lbl fill-accent").attr("text-anchor", "middle").call((s) => T(s, "cutoff", "カットオフ"));
+      cut.append("text").attr("class", "lbl fill-treat sup").attr("text-anchor", "start").call((s) => T(s, "← extra support", "← 追加支援"));
     }
     cut.select("rect").attr("x", 0).attr("width", x(pl.cut)).attr("y", 0).attr("height", ih);
     cut.select("line").attr("x1", x(pl.cut)).attr("x2", x(pl.cut)).attr("y1", 0).attr("y2", ih);
@@ -283,7 +334,7 @@
     }
     tr(a).attr("d", lp(pl.tline));
     tr(b).attr("d", lp(pl.cline));
-    bracket(inner, x(pl.cut) + 6, y(pl.jump.y0), y(pl.jump.y1), "jump " + fmt1(pl.jump.y1 - pl.jump.y0));
+    bracket(inner, x(pl.cut) + 6, y(pl.jump.y0), y(pl.jump.y1), ERL.t("jump ", "ジャンプ ") + fmt1(pl.jump.y1 - pl.jump.y0));
   }
 
   function drawFactorial(g, pl) {
@@ -295,7 +346,7 @@
     const x = d3.scalePoint().domain(pl.alab).range([iw * 0.18, iw * 0.82]);
     yAxis(layer(inner, "yax"), y, iw, { grid: true });
     const cl = layer(inner, "cols").selectAll("text").data(pl.alab);
-    cl.enter().append("text").attr("class", "lbl-strong").attr("text-anchor", "middle").attr("y", ih + 28).merge(cl).attr("x", (d) => x(d)).text((d) => d);
+    cl.enter().append("text").attr("class", "lbl-strong").attr("text-anchor", "middle").attr("y", ih + 28).merge(cl).attr("x", (d) => x(d)).call((s) => Td(s, (d) => d));
     const off = (b) => (b ? 16 : -16);
     const pts = [];
     pl.cells.forEach((c) => c.pts.forEach((v, i) => pts.push({ id: `${c.a}${c.b}-${i}`, b: c.b, cx: x(pl.alab[c.a]) + off(c.b) + jit(i, c.a * 2 + c.b) * 40, cy: y(v) })));
@@ -311,7 +362,7 @@
     le.append("text").attr("class", "lbl").attr("font-weight", 600);
     const lm = le.merge(ln);
     lm.select("path").attr("class", (d) => (d.b ? "stroke-treat" : "stroke-ctrl")).call((s) => tr(s).attr("d", (d) => d3.line()(d.pts)));
-    lm.select("text").attr("class", (d) => "lbl " + (d.b ? "fill-treat" : "fill-ctrl")).text((d) => pl.blab[d.b])
+    lm.select("text").attr("class", (d) => "lbl " + (d.b ? "fill-treat" : "fill-ctrl")).call((s) => Td(s, (d) => pl.blab[d.b]))
       .call((s) => tr(s).attr("x", (d) => d.pts[1][0] + 14).attr("y", (d) => d.pts[1][1] + 4));
     const mp = layer(inner, "mp").selectAll("circle").data(lines.flatMap((l) => l.pts.map((p) => ({ p, b: l.b }))));
     mp.enter().append("circle").attr("r", 6).merge(mp).attr("class", (d) => (d.b ? "fill-treat" : "fill-ctrl"))
@@ -331,7 +382,7 @@
     const y = d3.scaleBand().domain(pl.rows.map((r) => r.key)).range([0, ih]).padding(0.18);
     xAxis(layer(inner, "xax").attr("transform", `translate(0,${ih})`), x, { fmt: d3.format("+") });
     let xt = inner.select("text.xtitle");
-    if (xt.empty()) xt = inner.append("text").attr("class", "ax-title xtitle").attr("text-anchor", "middle").text("estimated effect (points)");
+    if (xt.empty()) xt = inner.append("text").attr("class", "ax-title xtitle").attr("text-anchor", "middle").call((s) => T(s, "estimated effect (points)", "推定された効果（点）"));
     xt.attr("x", iw / 2).attr("y", ih + 32);
     const rows = layer(inner, "rows").selectAll("g.rrow").data(pl.rows, (d) => d.key);
     const re = rows.enter().append("g").attr("class", "rrow");
@@ -342,7 +393,7 @@
     const rm = re.merge(rows);
     rm.attr("transform", (d) => `translate(0,${y(d.key)})`);
     rm.select("rect").attr("x", -6).attr("width", iw + 12).attr("height", y.bandwidth()).attr("opacity", (d, i) => (i % 2 ? 0 : 0.6));
-    rm.select("text").attr("y", y.bandwidth() / 2 + 4).text((d) => d.name);
+    rm.select("text").attr("y", y.bandwidth() / 2 + 4).call((s) => Td(s, (d) => d.name));
     rm.each(function (d) {
       const c = d3.select(this).select("g.pts").selectAll("circle").data(d.ests);
       c.enter().append("circle").attr("r", 2.6).attr("cx", x(pl.truth)).attr("cy", (v, i) => y.bandwidth() / 2 + jit(i, 3) * y.bandwidth() * 0.75)
@@ -358,7 +409,8 @@
       inner.append("text").attr("class", "tlab lbl fill-accent").attr("text-anchor", "middle");
     }
     tr(tl).attr("x1", x(pl.truth)).attr("x2", x(pl.truth)).attr("y1", -6).attr("y2", ih);
-    tr(inner.select("text.tlab")).attr("x", x(pl.truth)).attr("y", -2).text("true effect");
+    T(inner.select("text.tlab"), "true effect", "真の効果");
+    tr(inner.select("text.tlab")).attr("x", x(pl.truth)).attr("y", -2);
   }
 
   function drawLadder(g, pl) {
@@ -372,16 +424,17 @@
       ax = inner.append("g").attr("class", "arrow");
       ax.append("line").attr("class", "stroke-ink").attr("x1", 0).attr("x2", W - 30).attr("y1", arrowY).attr("y2", arrowY).attr("stroke-width", 1.5);
       ax.append("path").attr("class", "fill-ink").attr("d", `M${W - 30},${arrowY - 5} l10,5 l-10,5z`);
-      ax.append("text").attr("class", "ax-title").attr("x", 0).attr("y", arrowY + 22).text("less control over alternative explanations");
-      ax.append("text").attr("class", "ax-title").attr("x", W - 20).attr("y", arrowY + 22).attr("text-anchor", "end").text("stronger evidence of causality");
+      ax.append("text").attr("class", "ax-title").attr("x", 0).attr("y", arrowY + 22).call((s) => T(s, "less control over alternative explanations", "他の説明を排除しにくい"));
+      ax.append("text").attr("class", "ax-title").attr("x", W - 20).attr("y", arrowY + 22).attr("text-anchor", "end").call((s) => T(s, "stronger evidence of causality", "因果の証拠がより強い"));
     }
+    ax.selectAll("text.ax-title").attr("y", (d, i) => arrowY + (i && ERL.lang === "both" ? 40 : 22));
     const cols = inner.selectAll("g.tcol").data(tiers);
     const ce = cols.enter().append("g").attr("class", "tcol");
     ce.append("text").attr("class", "lbl-strong").attr("y", 18);
-    ce.merge(cols).attr("transform", (d, i) => `translate(${i * colW},0)`).select("text").attr("x", colW / 2 - 6).attr("text-anchor", "middle").text((d) => d);
+    ce.merge(cols).attr("transform", (d, i) => `translate(${i * colW},0)`).select("text").attr("x", colW / 2 - 6).attr("text-anchor", "middle").call((s) => Td(s, (d) => (pl.tier_lab || {})[d] || d));
     const pills = [];
     tiers.forEach((t, ti) => pl.designs.filter((d) => d.tier === t).forEach((d, k) => pills.push({ ...d, ti, k })));
-    const pw = colW - 16, ph = 48;
+    const pw = colW - 16, ph = ERL.lang === "both" ? 62 : 48;
     const pg = inner.selectAll("g.pill").data(pills, (d) => d.key);
     const pe = pg.enter().append("g").attr("class", "pill").style("cursor", "pointer").style("opacity", 0)
       .on("click", (ev, d) => ERL.gotoStep(d.key));
@@ -389,14 +442,21 @@
     pe.append("text").attr("x", pw / 2).attr("text-anchor", "middle");
     pe.merge(pg).attr("transform", (d) => `translate(${d.ti * colW + 2},${40 + d.k * (ph + 10)})`)
       .call((s) => tr(s).delay((d, i) => i * 60).style("opacity", 1));
-    pe.select("text").each(function (d) {
-      const words = d.name.split(" ");
-      const lines = [];
-      let cur = "";
-      words.forEach((w) => { if ((cur + " " + w).trim().length > 19) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim(); });
-      lines.push(cur);
+    pe.merge(pg).select("rect").attr("height", ph);
+    pe.merge(pg).select("text").each(function (d) {
+      const [en, ja] = split(d.name);
+      const wrap = (txt, max) => {
+        const words = txt.split(" "), out = [];
+        let cur = "";
+        words.forEach((w) => { if ((cur + " " + w).trim().length > max) { if (cur) out.push(cur); cur = w; } else cur = (cur + " " + w).trim(); });
+        if (cur) out.push(cur);
+        return out;
+      };
+      const jaLines = (txt) => { const out = []; for (let i = 0; i < txt.length; i += 11) out.push(txt.slice(i, i + 11)); return out; };
+      let lines = ERL.lang === "en" ? wrap(en, 19).slice(0, 3) : ERL.lang === "ja" ? jaLines(ja).slice(0, 3) : wrap(en, 22).slice(0, 2).concat(jaLines(ja).slice(0, 2));
       const t = d3.select(this);
-      lines.slice(0, 3).forEach((ln, i) => t.append("tspan").attr("x", pw / 2).attr("y", ph / 2 + 4 + (i - (Math.min(lines.length, 3) - 1) / 2) * 14).text(ln));
+      t.selectAll("tspan").remove();
+      lines.forEach((ln, i) => t.append("tspan").attr("x", pw / 2).attr("y", ph / 2 + 4 + (i - (lines.length - 1) / 2) * 13.5).text(ln));
     });
     pe.select("rect").attr("stroke-width", 1.5).style("stroke", (d) => d.tier === "Strong" ? "var(--treat)" : d.tier === "Weak" ? "var(--accent)" : d.tier === "Moderate" ? "var(--gold)" : "var(--violet)");
   }
@@ -465,8 +525,8 @@
     if (M.select(".mc").empty()) {
       M.append("line").attr("class", "mc stroke-ctrl").attr("stroke-dasharray", "3 3");
       M.append("line").attr("class", "mt stroke-treat").attr("stroke-dasharray", "3 3");
-      M.append("text").attr("class", "tc lbl fill-ctrl").attr("text-anchor", "end").text("Control");
-      M.append("text").attr("class", "tt lbl fill-treat").attr("text-anchor", "start").text("Intervention");
+      M.append("text").attr("class", "tc lbl fill-ctrl").attr("text-anchor", "end").call((s) => T(s, "Control", "統制群"));
+      M.append("text").attr("class", "tt lbl fill-treat").attr("text-anchor", "start").call((s) => T(s, "Intervention", "介入群"));
       M.append("path").attr("class", "arr stroke-ink").attr("fill", "none").attr("stroke-width", 1.5);
       M.append("text").attr("class", "dl lbl-strong").attr("text-anchor", "middle");
     }
@@ -489,7 +549,7 @@
     yAxis(layer(g, "yax"), y, iw, { grid: true, fmt: d3.format(".0%"), ticks: 5 });
     xAxis(layer(g, "xax").attr("transform", `translate(0,${ih})`), x, { values: [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000], fmt: d3.format(",") });
     let xt = g.select("text.xtitle");
-    if (xt.empty()) g.append("text").attr("class", "ax-title xtitle").attr("x", iw / 2).attr("y", ih + 32).attr("text-anchor", "middle").text("students per group (log scale)");
+    if (xt.empty()) g.append("text").attr("class", "ax-title xtitle").attr("x", iw / 2).attr("y", ih + 32).attr("text-anchor", "middle").call((s) => T(s, "students per group (log scale)", "1群あたりの人数（対数目盛）"));
     const data0 = pl.ns.map((n, i) => [n, pl.p0[i]]), data1 = pl.ns.map((n, i) => [n, pl.p1[i]]);
     const ln = d3.line().x((d) => x(d[0])).y((d) => y(d[1]));
     const L = layer(g, "lines");
@@ -498,8 +558,8 @@
       L.append("text").attr("class", "e80t lbl fill-accent").text("80%");
       L.append("path").attr("class", "l1 stroke-treat").attr("fill", "none").attr("stroke-width", 2).attr("stroke-dasharray", "6 3");
       L.append("path").attr("class", "l0 stroke-ink").attr("fill", "none").attr("stroke-width", 2.5);
-      L.append("text").attr("class", "t0 lbl");
-      L.append("text").attr("class", "t1 lbl fill-treat");
+      L.append("text").attr("class", "t0 lbl").call((s) => T(s, "posttest only", "事後テストのみ"));
+      L.append("text").attr("class", "t1 lbl fill-treat").call((s) => T(s, "with pretest", "事前テストあり"));
       L.append("line").attr("class", "cur stroke-ink").attr("opacity", 0.4);
       L.append("circle").attr("class", "c0 fill-ink").attr("r", 5);
       L.append("circle").attr("class", "c1 fill-treat").attr("r", 5);
@@ -508,8 +568,8 @@
     L.select(".e80t").attr("x", 4).attr("y", y(0.8) - 5);
     tr(L.select(".l0"), 450).attr("d", ln(data0));
     tr(L.select(".l1"), 450).attr("d", ln(data1));
-    tr(L.select(".t0"), 450).attr("x", iw + 6).attr("y", y(pl.p0[pl.p0.length - 1]) + 16).text("posttest only");
-    tr(L.select(".t1"), 450).attr("x", iw + 6).attr("y", y(pl.p1[pl.p1.length - 1]) + 2).text("with pretest");
+    tr(L.select(".t0"), 450).attr("x", iw + 6).attr("y", y(pl.p0[pl.p0.length - 1]) + 16);
+    tr(L.select(".t1"), 450).attr("x", iw + 6).attr("y", y(pl.p1[pl.p1.length - 1]) + 2);
     const cx = x(Math.max(4, Math.min(5000, pl.n)));
     tr(L.select(".cur"), 450).attr("x1", cx).attr("x2", cx).attr("y1", 0).attr("y2", ih);
     tr(L.select(".c0"), 450).attr("cx", cx).attr("cy", y(pl.cur0 || 0));
@@ -546,7 +606,7 @@
       }
       L.select(".crit").attr("d", d3.area().x((d) => x(d[0])).y0(ih).y1((d) => y(d[1]))(pts));
       L.select(".cv").attr("d", d3.line().x((d) => x(d[0])).y((d) => y(d[1]))(pts));
-      L.select(".h0").text(`t-distribution if H₀ is true (df = ${pl.df})`);
+      T(L.select(".h0"), `t-distribution if H₀ is true (df = ${pl.df})`, `H₀ が正しいときの t 分布（df = ${pl.df}）`);
       [".c1", ".c2"].forEach((c, i) => L.select(c).attr("x1", x((i ? 1 : -1) * pl.tcrit)).attr("x2", x((i ? 1 : -1) * pl.tcrit)).attr("y1", ih).attr("y2", y(0.25)));
       if (tobs != null) {
         const tt = Math.min(tobs, 5.95);
@@ -572,7 +632,7 @@
       yAxis(layer(g, "yax"), y, iw, { grid: true, ticks: 4, fmt: d3.format(",~d") });
       xAxis(layer(g, "xax").attr("transform", `translate(0,${ih})`), x, { values: [0, 0.05, 0.2, 0.4, 0.6, 0.8, 1], fmt: (v) => (v === 0.05 ? ".05" : d3.format(".1~f")(v)) });
       let xt = g.select("text.xtitle");
-      if (xt.empty()) g.append("text").attr("class", "ax-title xtitle").attr("x", iw / 2).attr("y", ih + 32).attr("text-anchor", "middle").text("p-value");
+      if (xt.empty()) g.append("text").attr("class", "ax-title xtitle").attr("x", iw / 2).attr("y", ih + 32).attr("text-anchor", "middle").call((s) => T(s, "p-value", "p値"));
       const bw = iw / 20;
       const bars = layer(g, "bars").selectAll("rect").data(pl.counts);
       bars.enter().append("rect").attr("x", (d, i) => i * bw + 1).attr("width", bw - 2).attr("y", ih).attr("height", 0).attr("rx", 2)
@@ -593,7 +653,8 @@
         E.append("text").attr("class", "lbl").attr("text-anchor", "end");
       }
       tr(E.select("line"), 500).attr("x1", 0).attr("x2", iw).attr("y1", y(exp)).attr("y2", y(exp)).style("opacity", pl.total ? 1 : 0);
-      tr(E.select("text"), 500).attr("x", iw).attr("y", y(exp) - 5).style("opacity", pl.total ? 1 : 0).text("flat line = what H₀ predicts");
+      T(E.select("text"), "flat line = what H₀ predicts", "平らな線 = H₀ の予測");
+      tr(E.select("text"), 500).attr("x", iw).attr("y", y(exp) - 5).style("opacity", pl.total ? 1 : 0);
     }
     // --- dance of CIs
     {
@@ -613,7 +674,8 @@
       }
       Z.select(".z").attr("x1", x(0)).attr("x2", x(0)).attr("y1", 0).attr("y2", ih);
       tr(Z.select(".tv"), 400).attr("x1", x(pl.d)).attr("x2", x(pl.d)).attr("y1", 0).attr("y2", ih);
-      tr(Z.select(".tvt"), 400).attr("x", x(pl.d)).attr("y", ih + 26).text("true d");
+      T(Z.select(".tvt"), "true d", "真の d");
+      tr(Z.select(".tvt"), 400).attr("x", x(pl.d)).attr("y", ih + 26);
       const keyBase = pl.total;
       const rows = layer(g, "rows").selectAll("g.ci").data(rec, (d, i) => keyBase - i);
       rows.exit().transition().duration(300).style("opacity", 0).remove();
@@ -701,7 +763,7 @@
       L.select(".pa").attr("d", ar((d) => d[0] >= pl.chi2));
       L.select(".cv").attr("d", d3.line().x((d) => x(d[0])).y((d) => y(d[1]))(pts));
       L.select(".cl").attr("x1", x(pl.crit)).attr("x2", x(pl.crit)).attr("y1", ih).attr("y2", y(ymax * 0.6));
-      L.select(".ct").attr("x", x(pl.crit)).attr("y", y(ymax * 0.6) - 5).text("critical value (α = .05)");
+      L.select(".ct").attr("x", x(pl.crit)).attr("y", y(ymax * 0.6) - 5).call((s) => T(s, "critical value (α = .05)", "臨界値（α = .05）"));
       tr(L.select(".ol"), 450).attr("x1", x(pl.chi2)).attr("x2", x(pl.chi2)).attr("y1", ih).attr("y2", y(ymax * 0.92));
       tr(L.select(".ot"), 450).attr("x", Math.min(iw - 40, x(pl.chi2))).attr("y", y(ymax * 0.92) - 6).text("X² = " + pl.chi2.toFixed(2));
     }
@@ -813,15 +875,15 @@
     const x = d3.scaleLinear().domain([lo, hi]).range([0, iw]);
 
     // titles
-    const titles = [["Population", P.y - 10, pl.pop.label], ["One sample (n = " + pl.n + ")", Sm.y - 10, "its mean is marked ▲"],
-      ["Sampling distribution of the mean", M.y - 10, pl.means.length.toLocaleString() + " sample means"]];
+    const titles = [["Population ｜ 母集団", P.y - 10, pl.pop.label], ["One sample (n = " + pl.n + ") ｜ 1つの標本（n = " + pl.n + "）", Sm.y - 10, "its mean is marked ▲ ｜ ▲ がその平均"],
+      ["Sampling distribution of the mean ｜ 平均の標本分布", M.y - 10, pl.means.length.toLocaleString() + " sample means ｜ " + pl.means.length.toLocaleString() + " 個の標本平均"]];
     const tt = layer(g, "titles").selectAll("g").data(titles);
     const te = tt.enter().append("g");
     te.append("text").attr("class", "lbl-strong");
     te.append("text").attr("class", "lbl sub").attr("text-anchor", "end");
     const tm = te.merge(tt);
-    tm.select(".lbl-strong").attr("x", 0).attr("y", (d) => d[1]).text((d) => d[0]);
-    tm.select(".sub").attr("x", iw).attr("y", (d) => d[1]).text((d) => d[2]);
+    tm.select(".lbl-strong").attr("x", 0).attr("y", (d) => d[1]).call((s) => Td(s, (d) => d[0]));
+    tm.select(".sub").attr("x", iw).attr("y", (d) => d[1]).call((s) => Td(s, (d) => d[2]));
 
     // population
     const pg = layer(g, "pop").attr("transform", `translate(0,${P.y})`);
@@ -930,8 +992,11 @@
   // =====================================================================
   // Wiring
   // =====================================================================
+  ERL.u = { svgIn, layer, tr, xAxis, yAxis, jit, T, Td, split };
+  let lastDesign = null;
+  ERL.onLang("design", () => { if (lastDesign && lastDesign.payload && lastDesign.payload.kind === "ladder") designChart(lastDesign); });
   whenShiny(() => {
-    Shiny.addCustomMessageHandler("erl_design", designChart);
+    Shiny.addCustomMessageHandler("erl_design", (m) => { lastDesign = m; designChart(m); });
     Shiny.addCustomMessageHandler("erl_cohen", cohenChart);
     Shiny.addCustomMessageHandler("erl_power", powerChart);
     Shiny.addCustomMessageHandler("erl_pv", pvCharts);
