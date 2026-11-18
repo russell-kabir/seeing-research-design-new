@@ -19,7 +19,10 @@ WR_FAMILIES <- list(
                   cols = c("art_the", "art_a_an", "art_per100", "art_def_share", "art_aan_flags")),
   causal = list(en = "Causal connectives (Halliday & Hasan)", ja = "因果の接続表現（Halliday & Hasan）",
                 cols = c("causal_hh", "causal_hh_per100", "causal_hh_per_sent", paste0("c_", names(CAUSAL)), "causal_ext", "causal_review")),
-  ithink = list(en = "“I think”", ja = "“I think”", cols = c("i_think", "i_think_per100"))
+  ithink = list(en = "“I think”", ja = "“I think”", cols = c("i_think", "i_think_per100")),
+  vocab = list(en = "Vocabulary profile (NGSL + TSL, CEFR-J)", ja = "語彙プロファイル（NGSL ＋ TSL、CEFR-J）",
+               cols = c("ngsl_cov", "ngsl_tsl_cov", paste0("ngsl_", VP_LISTS$ngsl$order), "ngsl_off", "ngsl_types_off",
+                        paste0("cefr_", VP_LISTS$cefrj$order), "cefr_off", "cefr_mean", "cefr_b1plus", "cefr_types_off"))
 )
 
 # Labels for result columns (used in the chart picker and tables)
@@ -40,6 +43,14 @@ WR_LABELS <- list(
   causal_review = c("Connective hits to review", "要確認の接続表現"),
   i_think = c("“I think” (count)", "“I think”（回数）"), i_think_per100 = c("“I think” per 100 words", "100語あたりの “I think”")
 )
+WR_LABELS <- c(WR_LABELS, list(
+  ngsl_cov = c("NGSL coverage (% tokens)", "NGSL のカバー率（トークン％）"),
+  ngsl_tsl_cov = c("NGSL + TSL coverage (% tokens)", "NGSL ＋ TSL のカバー率（トークン％）"),
+  ngsl_off = c("Off NGSL + TSL (% tokens)", "NGSL ＋ TSL 外（トークン％）"), ngsl_types_off = c("Off-list word types (NGSL + TSL)", "リスト外の語（タイプ数、NGSL ＋ TSL）"),
+  cefr_off = c("Off CEFR-J (% tokens)", "CEFR-J 外（トークン％）"), cefr_mean = c("Mean CEFR-J level (A1 = 1 … C2 = 6)", "CEFR-J レベルの平均（A1 = 1 … C2 = 6）"),
+  cefr_b1plus = c("B1 and above (% tokens)", "B1 以上（トークン％）"), cefr_types_off = c("Off-list word types (CEFR-J)", "リスト外の語（タイプ数、CEFR-J）")))
+for (b in VP_LISTS$ngsl$order) WR_LABELS[[paste0("ngsl_", b)]] <- c(paste0(VP_LISTS$ngsl$labels[[b]], " (% tokens)"), paste0(VP_LISTS$ngsl$labels[[b]], "（トークン％）"))
+for (b in VP_LISTS$cefrj$order) WR_LABELS[[paste0("cefr_", b)]] <- c(paste0("CEFR-J ", b, " (% tokens)"), paste0("CEFR-J ", b, "（トークン％）"))
 for (k in names(CAUSAL)) WR_LABELS[[paste0("c_", k)]] <- c(paste0("H&H: ", CAUSAL[[k]]$en), paste0("H&H：", CAUSAL[[k]]$ja))
 
 wr_lab <- function(k) { l <- WR_LABELS[[k]]; if (is.null(l)) k else Lc(l[1], l[2]) }
@@ -153,7 +164,37 @@ writing_tab <- nav_panel(L("Writing", "ライティング"), value = "Writing",
                   span(class = "wr-chip wr-flag", L("a/an to check", "a/an 要確認")),
                   span(class = "wr-chip wr-rev", L("review", "要確認"))))),
           div(class = "fig-col wide",
-            div(class = "sticky-inner", uiOutput("wr_read_text"))))))))
+            div(class = "sticky-inner", uiOutput("wr_read_text"))))),
+      nav_panel(tagList("5 · ", L("Vocabulary profile", "語彙プロファイル")), value = "vocab",
+        div(class = "tool",
+          div(class = "ctrl-col",
+            radioButtons("wr_vlist", L("Word list", "語彙リスト"),
+                         choiceNames = list(L("NGSL 1.01 + TOEIC Service List", "NGSL 1.01 ＋ TOEIC サービスリスト"),
+                                            L("CEFR-J Wordlist (A1–B2) + Octanove C1/C2", "CEFR-J 語彙表（A1〜B2）＋ Octanove C1/C2"),
+                                            L("Your own list (upload below)", "自分のリスト（下で読み込む）")),
+                         choiceValues = c("ngsl", "cefrj", "custom")),
+            fileInput("wr_vlist_upload", L("Your own list: CSV with headword, level", "自分のリスト：headword と level の列がある CSV"),
+                      accept = c(".csv", "text/csv"), buttonLabel = L("Choose…", "選ぶ…"), placeholder = "No file / ファイルなし"),
+            uiOutput("wr_vlist_msg"),
+            sel("wr_vrow", L("Paragraph to colour", "色分けする段落"), c("—" = "")),
+            div(class = "btn-row",
+              downloadButton("wr_vwords_csv", L("Every word with its level (CSV)", "すべての語とレベル（CSV）"), class = "btn-ghost btn-sm")),
+            div(class = "note", mini(L("How words are matched", "語の照合のしかた")),
+              tags$ul(
+                LI("Each word is reduced to its headword (went → go, children → child) and looked up. If a form could belong to two headwords (leaves → leaf or leave), the easier level is used.",
+                   "各語を見出し語に戻して（went → go、children → child）照合します。2つの見出し語にあてはまる形（leaves → leaf か leave）は、やさしい方のレベルを使います。"),
+                LI("Contractions are split (don't → do + not) and hyphenated words are split into parts. Numbers are skipped. Capitalised words in mid-sentence that are not on the list count as proper nouns and are skipped.",
+                   "短縮形は分け（don't → do + not）、ハイフンでつながった語も分けます。数字は除きます。文中の大文字で始まる語でリストにないものは固有名詞として除きます。"),
+                LI("Percentages are of the profiled tokens. CEFR-J does not list nationality words (English, Japanese), so they show as off-list.",
+                   "割合は照合した語（トークン）に対するものです。CEFR-J には国名・国籍の語（English、Japanese など）がないので、リスト外になります。"))),
+            P(tagList("Lists: NGSL 1.01 and TSL 1.1 (Browne, Culligan & Phillips; CC BY-SA 4.0); CEFR-J Wordlist 1.5 (Tono Laboratory, TUFS); Octanove Vocabulary Profile C1/C2 (CC BY-SA 4.0); lemmas from Měchura's lemmatization list (ODbL). Licensed lists such as JACET8000 or SVL12000 can be uploaded as your own list."),
+              tagList("リスト：NGSL 1.01 と TSL 1.1（Browne, Culligan & Phillips；CC BY-SA 4.0）、CEFR-J 語彙表 1.5（東京外国語大学 投野研究室）、Octanove Vocabulary Profile C1/C2（CC BY-SA 4.0）、見出し語化は Měchura の lemmatization list（ODbL）。JACET8000 や SVL12000 など利用許諾のあるリストは「自分のリスト」として読み込めます。"), cls = "small muted")),
+          div(class = "fig-col wide",
+            div(class = "sticky-inner",
+              fig_head(L("Share of tokens at each level", "レベルごとのトークンの割合"), L("% of profiled words, by group", "照合した語に対する％・グループ別")),
+              fig("wr-vocab"),
+              uiOutput("wr_vtext"),
+              uiOutput("wr_voff"))))))))
 
 # ---- Server -------------------------------------------------------------------------
 writing_server <- function(input, output, session) {
@@ -219,6 +260,11 @@ writing_server <- function(input, output, session) {
     ext <- isTRUE(input$wr_ext)
     rows <- lapply(txt, function(t) writing_measures(t, extended = ext, taaled = taaled))
     res <- as.data.frame(do.call(rbind, lapply(rows, function(r) unlist(r))), stringsAsFactors = FALSE)
+    if ("vocab" %in% (input$wr_fams %||% character(0))) {
+      Ls <- c(VP_LISTS, if (!is.null(wr_vcustom())) list(custom = wr_vcustom()))
+      vp <- lapply(txt, function(t) { nt <- norm_text(t); do.call(c, unname(lapply(Ls, function(L) vp_summary(vp_profile_words(nt, L), L)))) })
+      res <- cbind(res, as.data.frame(do.call(rbind, vp)))
+    }
     res
   })
 
@@ -242,7 +288,9 @@ writing_server <- function(input, output, session) {
 
   sel_cols <- reactive({
     f <- input$wr_fams %||% character(0)
-    as.character(unique(unlist(lapply(WR_FAMILIES[intersect(names(WR_FAMILIES), f)], `[[`, "cols"))))
+    cols <- as.character(unique(unlist(lapply(WR_FAMILIES[intersect(names(WR_FAMILIES), f)], `[[`, "cols"))))
+    if ("vocab" %in% f && !is.null(wr_vcustom())) { L <- wr_vcustom(); cols <- c(cols, paste0("custom_", L$order), "custom_off", "custom_types_off") }
+    cols
   })
 
   results_out <- reactive({
@@ -395,6 +443,104 @@ writing_server <- function(input, output, session) {
       kw$keep <- ""
       write.csv(kw[, c("id", "group", "column", "type", "type_label", "left", "hit", "right", "review", "keep")], file,
                 row.names = FALSE, fileEncoding = "UTF-8")
+    })
+
+  # ---- vocabulary profile ----
+  wr_vcustom <- reactiveVal(NULL)
+  wr_vmsg <- reactiveVal(NULL)
+  observeEvent(input$wr_vlist_upload, {
+    tryCatch({
+      df <- read_text_csv(input$wr_vlist_upload$datapath)$df
+      if (ncol(df) < 2) stop("The list needs two columns: headword and level.")
+      L <- vp_custom_list(df)
+      wr_vcustom(L)
+      wr_vmsg(list(ok = TRUE, text = sprintf("%s: %d headwords, levels %s.", esc(input$wr_vlist_upload$name), length(L$level), esc(paste(L$order, collapse = ", ")))))
+      updateRadioButtons(session, "wr_vlist", selected = "custom")
+    }, error = function(e) wr_vmsg(list(ok = FALSE, text = esc(conditionMessage(e)))))
+  })
+  output$wr_vlist_msg <- renderUI({ m <- wr_vmsg(); if (is.null(m)) return(NULL); div(class = paste("verdict small", if (m$ok) "good" else "bad"), HTML(m$text)) })
+
+  cur_vlist <- reactive({
+    k <- input$wr_vlist %||% "ngsl"
+    if (k == "custom") { L <- wr_vcustom(); if (is.null(L)) VP_LISTS$ngsl else L } else VP_LISTS[[k]]
+  })
+
+  # word-level profile of every paragraph for the chosen list
+  vwords <- reactive({
+    req(cols_ok())
+    df <- wr_data(); L <- cur_vlist()
+    lapply(df[[input$wr_col_text]], function(t) vp_profile_words(norm_text(t), L))
+  })
+
+  observe({
+    req(cols_ok())
+    vw <- vwords(); L <- cur_vlist(); g <- chart_groups(); lv <- unique(g)
+    cats <- c(L$order, "off")
+    vals <- lapply(lv, function(x) {
+      w <- do.call(rbind, vw[g == x]); w <- w[w$status %in% c("on", "off"), , drop = FALSE]
+      n <- nrow(w)
+      vapply(cats, function(cc) if (!n) 0 else if (cc == "off") 100 * sum(w$status == "off") / n else 100 * sum(w$level == cc, na.rm = TRUE) / n, 0)
+    })
+    session$sendCustomMessage("erl_wr_causal", list(target = "wr-vocab", groups = I(lv),
+      cats = lapply(cats, function(cc) list(key = cc, lab = if (cc == "off") "Off-list ｜ リスト外" else L$labels[[cc]],
+                                             col = if (cc == "off") VP_OFF_COL else L$cols[[cc]])),
+      vals = lapply(vals, function(v) arr(v, 2)), unit = "%"))
+  })
+
+  observe({
+    req(cols_ok())
+    df <- wr_data(); ids <- df[[input$wr_col_id]]; g <- group_of(df, input$wr_col_group, input$wr_col_group2)
+    lab <- paste0(seq_along(ids), ". ", ids, ifelse(g == "all", "", paste0(" · ", g)))
+    cur <- isolate(input$wr_vrow)
+    updateSelectInput(session, "wr_vrow", choices = setNames(as.character(seq_along(ids)), lab),
+                      selected = if (!is.null(cur) && cur %in% as.character(seq_along(ids))) cur else "1")
+  })
+
+  output$wr_vtext <- renderUI({
+    req(cols_ok(), input$wr_vrow)
+    i <- as.integer(input$wr_vrow); df <- wr_data(); req(i >= 1, i <= nrow(df))
+    L <- cur_vlist(); t <- norm_text(df[[input$wr_col_text]][i]); w <- vwords()[[i]]
+    # one colour per original word (first part decides: don't → do)
+    w <- w[!duplicated(w$start), , drop = FALSE]
+    html <- character(0); pos <- 1
+    for (j in seq_len(nrow(w))) {
+      s <- w$start[j]; e <- w$end[j]
+      html <- c(html, esc(substr(t, pos, s - 1)))
+      seg <- esc(substr(t, s, e))
+      html <- c(html, switch(w$status[j],
+        on = sprintf('<span class="vp-w" style="--c:%s" title="%s · %s">%s</span>', L$cols[[w$level[j]]], esc(w$headword[j]), esc(L$labels[[w$level[j]]]), seg),
+        off = sprintf('<span class="vp-w vp-off" title="off-list">%s</span>', seg),
+        sprintf('<span class="vp-skip" title="%s">%s</span>', w$status[j], seg)))
+      pos <- e + 1
+    }
+    html <- c(html, esc(substr(t, pos, nchar(t))))
+    use <- w[w$status %in% c("on", "off"), , drop = FALSE]
+    tagList(
+      div(class = "wr-key vp-key", lapply(L$order, function(l) span(class = "wr-chip", style = paste0("border-color:", L$cols[[l]]),
+            sprintf("%s · %d", L$labels[[l]], sum(use$level == l, na.rm = TRUE)))),
+          span(class = "wr-chip vp-off", sprintf("off-list ｜ リスト外 · %d", sum(use$status == "off"))),
+          span(class = "wr-chip vp-skip", L("skipped: numbers, proper nouns", "除外：数字・固有名詞"))),
+      div(class = "wr-read vp-read", HTML(paste(html, collapse = ""))))
+  })
+
+  output$wr_voff <- renderUI({
+    req(cols_ok())
+    vw <- vwords(); all <- do.call(rbind, vw)
+    off <- all$form[all$status == "off"]
+    if (!length(off)) return(P("No off-list words.", "リスト外の語はありません。", cls = "muted"))
+    tb <- sort(table(off), decreasing = TRUE); k <- min(length(tb), 60)
+    tagList(h4(L(sprintf("Off-list words in all paragraphs (%d types)", length(tb)), sprintf("全段落のリスト外の語（%d 種類）", length(tb)))),
+      p(class = "vp-offlist", lapply(seq_len(k), function(j) span(class = "vp-offw", names(tb)[j], tags$sub(as.integer(tb[j])))),
+        if (length(tb) > k) span(class = "muted small", sprintf(" … +%d", length(tb) - k))),
+      P("Misspellings show up here too, which makes this a quick spelling check.", "綴りの誤りもここに出るので、簡単なスペルチェックにもなります。", cls = "small muted"))
+  })
+
+  output$wr_vwords_csv <- downloadHandler(filename = function() paste0("vocabulary_profile_", input$wr_vlist %||% "ngsl", ".csv"),
+    content = function(file) {
+      df <- wr_data(); vw <- vwords(); ids <- df[[input$wr_col_id]]; g <- group_of(df, input$wr_col_group, input$wr_col_group2)
+      out <- do.call(rbind, lapply(seq_along(vw), function(i) { w <- vw[[i]]; if (!nrow(w)) return(NULL)
+        data.frame(row = i, id = ids[i], group = g[i], word = w$form, headword = w$headword, level = w$level, status = w$status, stringsAsFactors = FALSE) }))
+      write.csv(out, file, row.names = FALSE, fileEncoding = "UTF-8", na = "")
     })
 
   # ---- read tab ----

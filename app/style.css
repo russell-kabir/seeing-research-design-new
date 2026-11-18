@@ -463,3 +463,14 @@ html.lang-ja .aut-ex:not(.ja) { display: none; }
 @media (min-width: 1001px) and (max-width: 1600px) {
   .navbar .nav-link { padding: 18px 7px !important; font-size: .84rem; }
 }
+
+/* ---------- Vocabulary profile ---------- */
+.vp-read .vp-w { background: color-mix(in srgb, var(--c) 22%, transparent); border-bottom: 2px solid var(--c); border-radius: 3px; padding: 0 1px; }
+.vp-read .vp-off { background: transparent; border-bottom: 2px dotted var(--ink-2); color: var(--ink); font-weight: 600; }
+.vp-read .vp-skip { color: var(--muted); }
+.vp-key { margin-bottom: 8px; }
+.vp-key .wr-chip.vp-off { border-bottom-style: dotted; border-color: var(--ink-2); }
+.vp-key .wr-chip.vp-skip { color: var(--muted); }
+.vp-offlist { line-height: 2; }
+.vp-offw { display: inline-block; font-family: var(--mono); font-size: .8rem; background: var(--card); border: 1px solid var(--rule); border-radius: 5px; padding: 0 6px; margin: 0 4px 4px 0; }
+.vp-offw sub { color: var(--muted); margin-left: 2px; }
