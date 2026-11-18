@@ -1,6 +1,6 @@
 # Seeing Research Design
 
-An interactive companion for teaching educational research methods. It covers the nine research designs in Nygren (2026), a PRISMA 2020 flow diagram builder, Cohen's d and power, p-values, chi-square, probability distributions, the central limit theorem, correlation and R², and a Research clinic where students self-assess their thesis projects.
+An interactive companion for teaching educational research methods. It covers the nine research designs in Nygren (2026), a PRISMA 2020 flow diagram builder, Cohen's d and power, p-values, chi-square, probability distributions, the central limit theorem, correlation and R², two corpus tools (Writing development and AUT scoring), and a Research clinic where students self-assess their thesis projects.
 
 Everything is bilingual in plain English and Japanese. The **EN / EN+日 / 日本語** switch at the top right shows English, both, or Japanese; the choice is remembered in each browser.
 
@@ -18,6 +18,11 @@ shiny::runGitHub("seeing-research-design-new", "russell-kabir", subdir = "app")
 | | |
 |---|---|
 | `app/app.R` | The main app: UI, simulations, statistics, PRISMA diagram, bilingual helpers (`L()`, `P()`, `Lh()`, `Lc()`) |
+| `app/textmetrics.R` | Text measures in base R: CSV reading (UTF-8 BOM / Shift-JIS), tokens, lexical diversity, articles, causal connectives, Krippendorff's α |
+| `app/writing.R` | Writing development tab |
+| `app/aut.R`, `app/aut_codebook.R` | AUT scoring tab and the Wahbeh codebook (with Japanese labels and keyword hints) |
+| `app/viz-writing.js` | Charts, AUT coding keys, and in-browser semantic distance (transformers.js) |
+| `app/data/templates/` | CSV templates for students: one paragraph per row, one AUT idea per row |
 | `app/corr.R` | Correlation & R² tab: Tyler Vigen's spurious correlations, the ENRO reading data, and R² as overlapping circles (Heiss, 2021) |
 | `app/clinic.R` | Research clinic tab: project self-check, plan, and lab board |
 | `app/data/enro_japan_subset.csv` | 129 Japanese L2 readers from the ENRO project (de-identified: no IDs, dates or free-text fields) |
@@ -40,5 +45,20 @@ Run `clearPosts()` in the script editor before a new class. The board code (`kab
 ## Using the full ENRO file
 On the *Correlation & R²* tab, open **Use your own CSV** and load any CSV. Numeric columns become variables and text columns with 2–8 categories (for example L1 vs. L2, or country) become groups, so the full ENRO download can be used to compare Japanese and non-Japanese readers. The file never leaves the browser.
 
+## Writing development tab
+Load a CSV with **one paragraph per row** (`student_id, project, attempt, version, text`; save from Excel as *CSV UTF-8*). Tick the measures and download one row of results per paragraph:
+
+* **Counts**: words, types, sentences.
+* **Lexical diversity**: TTR, Guiraud's R, MATTR (50-word window), MTLD (McCarthy & Jarvis, 2010, or the TAALED convention), HD-D (42-word sample, 0–1 scale; ×42 for the sum some tools report). HD-D, MATTR and the TAALED MTLD match the Python `lexical_diversity` package.
+* **Sentence complexity proxies**: mean length of sentence, subordinators and coordinators per sentence. These are surface counts, not parsed clauses, so use them to compare texts processed the same way (e.g. ICNALE/NICE written vs. edited).
+* **Articles**: the, a/an, rate per 100 words, and spelling-based a/an flags to check by hand.
+* **Causal connectives** after Halliday & Hasan (1976): every cell of the causal row, plus an optional "extended" set (thus, that's why…). Ambiguous words (so, then, for, otherwise) get rules and a review flag; the concordance CSV has a `keep` column for hand-checking.
+* **"I think"** count and rate.
+
+## AUT scoring tab
+Load a CSV with **one idea per row** (`student_id, item, response_order, condition, response`). Items such as 新聞, レンガ, 封筒, ハンガー map to the Wahbeh et al. codebook; other objects get a custom codebook typed on the Code tab. Code with the keyboard (1–9/0/q… category, i not possible, a/s/d elaboration, j/k/l originality, Enter next, n next uncoded), download the coded file, and reload it to continue. The Scores tab gives fluency, flexibility, elaboration and originality per participant × item × condition. The Two raters tab gives percent agreement, Krippendorff's α and a disagreement list for a third rater.
+
+Semantic distance: either compute it in the browser (a multilingual sentence model, ~120 MB, downloaded once from Hugging Face; responses stay on the computer) or export a SemDis-ready CSV for https://cap.ist.psu.edu/semdis and load the results back. Japanese was not among the languages validated for multilingual SemDis (Patterson et al., 2023), so the tab reports how semantic distance correlates with your own originality codes and with response length.
+
 ## Credits
-Design summaries are paraphrased, with page references, from Nygren, T. (2026). *Experimental methods and statistics for educational research: With examples from teaching and learning in history and social studies.* Uppsala University Publications (CC BY-NC-ND). The PRISMA 2020 flow diagram template is from Page, M. J., et al. (2021). *BMJ, 372*, n71 (CC BY 4.0). The visual style is inspired by explorable explanations such as Seeing Theory, R Psychologist and mfviz.com. Spurious correlations are from Tyler Vigen, [tylervigen.com](https://www.tylervigen.com/spurious-correlations) (CC BY 4.0). The R² circles follow Heiss, A. (2021), [Visualizing the explained variance of a regression with Euler diagrams](https://www.andrewheiss.com/blog/2021/08/21/r2-euler/). Reading data: Siegelman, N., et al. (2024). Rethinking first language–second language similarities and differences in English proficiency: Insights from the ENglish Reading Online (ENRO) project. *Language Learning, 74*(1), 249–294. https://doi.org/10.1111/lang.12586. Other data are simulated or illustrative.
+Design summaries are paraphrased, with page references, from Nygren, T. (2026). *Experimental methods and statistics for educational research: With examples from teaching and learning in history and social studies.* Uppsala University Publications (CC BY-NC-ND). The PRISMA 2020 flow diagram template is from Page, M. J., et al. (2021). *BMJ, 372*, n71 (CC BY 4.0). The visual style is inspired by explorable explanations such as Seeing Theory, R Psychologist and mfviz.com. Spurious correlations are from Tyler Vigen, [tylervigen.com](https://www.tylervigen.com/spurious-correlations) (CC BY 4.0). The R² circles follow Heiss, A. (2021), [Visualizing the explained variance of a regression with Euler diagrams](https://www.andrewheiss.com/blog/2021/08/21/r2-euler/). Reading data: Siegelman, N., et al. (2024). Rethinking first language–second language similarities and differences in English proficiency: Insights from the ENglish Reading Online (ENRO) project. *Language Learning, 74*(1), 249–294. https://doi.org/10.1111/lang.12586. AUT codebook: Wahbeh, H., Cannard, C., Yount, G., Delorme, A., & Radin, D. (2024). Creative self-belief responses versus manual and automated alternate use task scoring. *Journal of Creativity, 34*(3), 100088 (Supplemental Data). Causal connectives: Halliday, M. A. K., & Hasan, R. (1976). *Cohesion in English*. Longman. Other data, including the demo paragraphs and AUT responses, are simulated or illustrative.

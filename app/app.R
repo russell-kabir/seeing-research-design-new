@@ -720,7 +720,7 @@ tiles_html <- function(tiles) {
 }
 
 # New tabs live in their own files (sourced here so the UI below can use them).
-for (f in c("corr.R", "clinic.R")) eval(parse(f, encoding = "UTF-8"), envir = environment())
+for (f in c("corr.R", "clinic.R", "textmetrics.R", "writing.R", "aut_codebook.R", "aut.R")) eval(parse(f, encoding = "UTF-8"), envir = environment())
 
 design_step <- function(d) {
   tier_cls <- tolower(strsplit(d$tier, "-")[[1]][1])
@@ -749,7 +749,11 @@ cards <- list(
        "ゆがんだ母集団やでこぼこの母集団から標本を引き、標本平均がベル型になっていく様子を見る。"), "CLT"),
   list("08", L("Correlation & R²", "相関と R²"), L("Laugh at spurious correlations, explore real ENRO reading data, and see R² as overlapping circles.",
        "見せかけの相関で笑い、ENRO の実際の読解データを探り、R² を円の重なりとして見る。"), "Correlation"),
-  list("09", L("Research clinic", "研究相談室"), L("A quick self-check for your thesis project: tick what you need help with and post your exact question.",
+  list("09", L("Writing development", "ライティングの発達"), L("Upload learner paragraphs and get lexical diversity, sentence complexity, articles and Halliday & Hasan's causal connectives, one row per paragraph.",
+       "学習者の段落を読み込み、語彙の多様性・文の複雑さ・冠詞・Halliday & Hasan の因果の接続表現を、段落ごとに1行で出す。"), "Writing"),
+  list("10", L("AUT scoring", "AUT の採点"), L("Code Japanese Alternate Uses responses with the Wahbeh codebook, check two raters' agreement, and add semantic distance.",
+       "日本語の代替用途課題の回答を Wahbeh のコードブックでコーディングし、2人の評定者の一致を確かめ、意味的距離を加える。"), "AUT"),
+  list("11", L("Research clinic", "研究相談室"), L("A quick self-check for your thesis project: tick what you need help with and post your exact question.",
        "卒論・修論プロジェクトの簡単なセルフチェック。困っていることにチェックを入れ、具体的な質問を投稿する。"), "Clinic")
 )
 
@@ -1032,7 +1036,7 @@ lang_switch <- nav_item(div(class = "lang-switch", role = "group", `aria-label` 
   tags$button(type = "button", class = "lang-btn", `data-lang` = "ja", onclick = "ERL.setLang('ja')", "日本語")))
 
 ui <- page_navbar(
-  home, designs_tab, prisma_tab, effect_tab, pv_tab, chi_tab, dist_tab, clt_tab, corr_tab, clinic_tab,
+  home, designs_tab, prisma_tab, effect_tab, pv_tab, chi_tab, dist_tab, clt_tab, corr_tab, writing_tab, aut_tab, clinic_tab,
   nav_spacer(), lang_switch,
   title = tags$span(class = "brand", tags$span(class = "brand-mark", "◐"), tags$span(class = "brand-text", " Seeing Research Design")),
   id = "nav",
@@ -1046,7 +1050,8 @@ ui <- page_navbar(
     includeCSS("style.css"),
     includeScript("d3.min.js"),
     includeScript("viz.js"),
-    includeScript("viz-corr.js")
+    includeScript("viz-corr.js"),
+    includeScript("viz-writing.js")
   )
 )
 
@@ -1509,6 +1514,8 @@ server <- function(input, output, session) {
 
   # ======================= Correlation & R² / Research clinic =======================
   corr_server(input, output, session)
+  writing_server(input, output, session)
+  aut_server(input, output, session)
   clinic_server(input, output, session)
 
   # ======================= CLT =======================
