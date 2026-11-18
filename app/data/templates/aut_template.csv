@@ -1,0 +1,4 @@
+﻿student_id,item,response_order,condition,response
+S01,レンガ,1,pre,家を建てる
+S01,レンガ,2,pre,ドアストッパーにする
+S02,新聞,1,pre,丸めて焚き付けにする

@@ -1,0 +1,4 @@
+﻿student_id,project,attempt,version,text
+S01,personal_history,1,written,Type or paste one whole paragraph into this cell.
+S01,cohesion,1,written,Each row is one paragraph. Keep the same student_id for the same student.
+S02,tat,1,written,"Use the project names: personal_history, cohesion, feedback_story, tat."
