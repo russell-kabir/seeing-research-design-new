@@ -100,7 +100,7 @@
       const g = layer(svg, "inner").attr("transform", `translate(${m.l},${m.t})`);
       g.selectAll("*").remove();
       const tot = pl.vals.map((v) => d3.sum(v));
-      const x = d3.scaleLinear().domain([0, Math.max(1e-9, d3.max(tot)) * 1.08]).nice().range([0, W - m.l - m.r]);
+      const x = d3.scaleLinear().domain([0, pl.unit === "%" ? 100 : Math.max(1e-9, d3.max(tot)) * 1.08]).nice().range([0, W - m.l - m.r]);
       const y = d3.scaleBand().domain(d3.range(G.length)).range([0, G.length * rowH]).padding(0.22);
       g.append("g").attr("class", "ax").attr("transform", `translate(0,${G.length * rowH})`).call(d3.axisBottom(x).ticks(6)).select(".domain").remove();
       g.selectAll("text.glab").data(G).join("text").attr("class", "lbl glab").attr("x", -8).attr("y", (d, i) => y(i) + y.bandwidth() / 2 + 4)
@@ -110,10 +110,12 @@
         C.forEach((c, ci) => {
           const v = pl.vals[gi][ci] || 0;
           g.append("rect").attr("x", x(acc)).attr("y", y(gi)).attr("width", Math.max(0, x(acc + v) - x(acc))).attr("height", y.bandwidth())
-            .style("fill", c.col).style("opacity", 0.85).append("title").text(`${ERL.t(c.lab)}: ${d3.format(".2f")(v)}`);
+            .style("fill", c.col).style("opacity", 0.85).append("title").text(`${ERL.t(c.lab)}: ${d3.format(".2f")(v)}${pl.unit || ""}`);
+          if (pl.unit === "%" && v >= 6) g.append("text").attr("class", "lbl-mono").attr("x", x(acc + v / 2)).attr("y", y(gi) + y.bandwidth() / 2 + 4)
+            .attr("text-anchor", "middle").style("font-size", "10px").style("fill", "#fff").style("stroke", "none").style("paint-order", "normal").style("pointer-events", "none").text(d3.format(".0f")(v));
           acc += v;
         });
-        g.append("text").attr("class", "lbl-mono").attr("x", x(acc) + 5).attr("y", y(gi) + y.bandwidth() / 2 + 4).style("font-size", "11px").text(d3.format(".2f")(acc));
+        if (pl.unit !== "%") g.append("text").attr("class", "lbl-mono").attr("x", x(acc) + 5).attr("y", y(gi) + y.bandwidth() / 2 + 4).style("font-size", "11px").text(d3.format(".2f")(acc));
       });
       // legend (widths estimated from label length; wraps onto more rows when needed)
       const maxW = W - m.l - m.r, pos = [];
