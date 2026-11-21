@@ -15,6 +15,10 @@ WR_FAMILIES <- list(
             cols = c("ttr", "guiraud", "mattr50", "mtld", "hdd")),
   complex = list(en = "Sentence complexity (length, clause markers)", ja = "文の複雑さ（文の長さ・節の標識）",
                  cols = c("mls", "sub_per_sent", "coord_per_sent")),
+  syntax = list(en = "Clause-based syntactic complexity (L2SCA: MLT, MLC, DC/C, CN/C…; parses each sentence)",
+                ja = "節にもとづく統語的複雑さ（L2SCA：MLT・MLC・DC/C・CN/C など。各文を構文解析）",
+                cols = c("n_tunits", "n_clauses", "mlt", "mlc", "dc_c", "ct_t", "cn_c", "t_s", "c_t", "dc_t", "cp_c", "cp_t", "cn_t", "vp_t",
+                         "c_s", "signpost_words", "mlt_no_signposts")),
   articles = list(en = "Articles (the, a/an) and a/an flags", ja = "冠詞（the, a/an）と a/an の要確認",
                   cols = c("art_the", "art_a_an", "art_per100", "art_def_share", "art_aan_flags")),
   causal = list(en = "Causal connectives (Halliday & Hasan)", ja = "因果の接続表現（Halliday & Hasan）",
@@ -41,7 +45,20 @@ WR_LABELS <- list(
   causal_hh_per_sent = c("Causal connectives per sentence", "1文あたりの因果の接続表現"),
   causal_ext = c("Extended connectives (not in H&H)", "拡張の接続表現（H&H 外）"),
   causal_review = c("Connective hits to review", "要確認の接続表現"),
-  i_think = c("“I think” (count)", "“I think”（回数）"), i_think_per100 = c("“I think” per 100 words", "100語あたりの “I think”")
+  i_think = c("“I think” (count)", "“I think”（回数）"), i_think_per100 = c("“I think” per 100 words", "100語あたりの “I think”"),
+  n_tunits = c("T-units (count)", "T ユニット数"), n_clauses = c("Clauses (count)", "節の数"),
+  mlt = c("MLT: mean length of T-unit (words)", "MLT：T ユニットの平均の長さ（語）"),
+  mlc = c("MLC: mean length of clause (words)", "MLC：節の平均の長さ（語）"),
+  dc_c = c("DC/C: dependent clauses per clause", "DC/C：節あたりの従属節"),
+  ct_t = c("CT/T: share of T-units with a dependent clause", "CT/T：従属節を含む T ユニットの割合"),
+  cn_c = c("CN/C: complex nominals per clause", "CN/C：節あたりの複合名詞句"),
+  t_s = c("T/S: T-units per sentence (run-ons)", "T/S：1文あたりの T ユニット（文のつなぎすぎ）"),
+  c_t = c("C/T: clauses per T-unit", "C/T：T ユニットあたりの節"), dc_t = c("DC/T: dependent clauses per T-unit", "DC/T：T ユニットあたりの従属節"),
+  cp_c = c("CP/C: coordinate phrases per clause", "CP/C：節あたりの等位句"), cp_t = c("CP/T: coordinate phrases per T-unit", "CP/T：T ユニットあたりの等位句"),
+  cn_t = c("CN/T: complex nominals per T-unit", "CN/T：T ユニットあたりの複合名詞句"), vp_t = c("VP/T: verb phrases per T-unit", "VP/T：T ユニットあたりの動詞句"),
+  c_s = c("C/S: clauses per sentence", "C/S：1文あたりの節"),
+  signpost_words = c("Sentence-opening signpost words", "文頭の道しるべ表現の語数"),
+  mlt_no_signposts = c("MLT without sentence-opening signposts", "文頭の道しるべ表現を除いた MLT")
 )
 WR_LABELS <- c(WR_LABELS, list(
   ngsl_cov = c("NGSL coverage (% tokens)", "NGSL のカバー率（トークン％）"),
@@ -110,7 +127,8 @@ writing_tab <- nav_panel(L("Writing", "ライティング"), value = "Writing",
           div(class = "ctrl-col",
             checkboxGroupInput("wr_fams", L("Measures to compute", "計算する指標"),
                                choiceNames = unname(lapply(WR_FAMILIES, function(f) L(f$en, f$ja))), choiceValues = names(WR_FAMILIES),
-                               selected = names(WR_FAMILIES)),
+                               selected = setdiff(names(WR_FAMILIES), "syntax")),
+            uiOutput("wr_syntax_msg"),
             radioButtons("wr_mtld", L("MTLD convention", "MTLD の方式"), inline = FALSE,
                          choiceNames = list(L("McCarthy & Jarvis (2010): factor ends at TTR ≤ .72", "McCarthy & Jarvis (2010)：TTR ≤ .72 で区切る"),
                                             L("TAALED / Python lexical_diversity: TTR < .72 and ≥ 10 words", "TAALED／Python 版：TTR < .72 かつ10語以上")),
@@ -125,6 +143,8 @@ writing_tab <- nav_panel(L("Writing", "ライティング"), value = "Writing",
                    "HD-D は42語以上、MATTR は50語以上が必要で、足りないときは空欄になります。とても短い段落では MTLD と TTR は不安定です。"),
                 LI("Sentence complexity here counts surface markers (because, which, when…), not parsed clauses. Use it to compare texts processed the same way, such as written vs. edited versions.",
                    "ここでの文の複雑さは、構文解析ではなく表面の標識（because, which, when など）を数えたものです。同じ方法で処理したテキストどうし（例：原文と添削版）の比較に使ってください。"),
+                LI("The clause-based box parses every sentence (udpipe, a ~16 MB English model downloaded once per visit), then counts clauses, dependent clauses and T-units after Lu's L2SCA. Treat the numbers as close estimates of L2SCA, not identical values. Short paragraphs have few T-units, so the ratios jump around. Signposts such as “First of all,” lengthen T-units without adding clauses: compare MLT with “MLT without signposts”.",
+                   "節にもとづく指標では、すべての文を構文解析し（udpipe、約16 MB の英語モデルを訪問ごとに1回ダウンロード）、Lu の L2SCA にならって節・従属節・T ユニットを数えます。L2SCA と同じ値ではなく、近い推定値として扱ってください。短い段落は T ユニットが少ないため、比率がぶれやすくなります。“First of all,” のような道しるべ表現は、節を増やさずに T ユニットを長くします。MLT と「道しるべ表現を除いた MLT」を見比べてください。"),
                 LI("a/an flags are spelling-based guesses for a person to check (an hour is fine; a university is fine).",
                    "a/an の要確認は綴りからの推測なので、人が確認してください（an hour や a university は正しい）。")))),
           div(class = "fig-col wide",
@@ -265,7 +285,32 @@ writing_server <- function(input, output, session) {
       vp <- lapply(txt, function(t) { nt <- norm_text(t); do.call(c, unname(lapply(Ls, function(L) vp_summary(vp_profile_words(nt, L), L)))) })
       res <- cbind(res, as.data.frame(do.call(rbind, vp)))
     }
+    if ("syntax" %in% (input$wr_fams %||% character(0))) res <- cbind(res, wr_syntax())
     res
+  })
+
+  # Clause-based measures: parsed only when the box is ticked, and once per set of texts
+  wr_syntax_status <- reactiveVal(NULL)
+  wr_syntax <- reactive({
+    req(cols_ok())
+    txt <- wr_data()[[input$wr_col_text]]
+    out <- tryCatch({
+      withProgress(message = Lc("Parsing sentences (the first time downloads a ~16 MB model)…",
+                                "文を構文解析しています（初回は約16 MB のモデルをダウンロードします）…"), value = 0.3, {
+        r <- syntax_measures(txt); setProgress(1); r })
+    }, error = function(e) { wr_syntax_status(conditionMessage(e)); NULL })
+    if (is.null(out)) return(syntax_measures(character(length(txt))))   # empty columns, so other measures still work
+    wr_syntax_status("ok")
+    out
+  })
+  output$wr_syntax_msg <- renderUI({
+    if (!("syntax" %in% (input$wr_fams %||% character(0)))) return(NULL)
+    st <- wr_syntax_status()
+    if (is.null(st) || identical(st, "ok")) return(NULL)
+    div(class = "note", Lh(paste("The clause-based measures could not run:", esc(st),
+                                 "The other measures are unaffected. In desktop R, run install.packages(\"udpipe\") and restart the app."),
+                           paste("節にもとづく指標を計算できませんでした：", esc(st),
+                                 "ほかの指標には影響ありません。デスクトップ版の R では install.packages(\"udpipe\") を実行して、アプリを再起動してください。")))
   })
 
   kwic <- reactive({
