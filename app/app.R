@@ -720,7 +720,7 @@ tiles_html <- function(tiles) {
 }
 
 # New tabs live in their own files (sourced here so the UI below can use them).
-for (f in c("corr.R", "clinic.R", "textmetrics.R", "vocabprofile.R", "writing.R", "aut_codebook.R", "aut.R")) eval(parse(f, encoding = "UTF-8"), envir = environment())
+for (f in c("corr.R", "clinic.R", "textmetrics.R", "vocabprofile.R", "syntax.R", "writing.R", "aut_codebook.R", "aut.R")) eval(parse(f, encoding = "UTF-8"), envir = environment())
 
 design_step <- function(d) {
   tier_cls <- tolower(strsplit(d$tier, "-")[[1]][1])

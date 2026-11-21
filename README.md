@@ -20,6 +20,7 @@ shiny::runGitHub("seeing-research-design-new", "russell-kabir", subdir = "app")
 | `app/app.R` | The main app: UI, simulations, statistics, PRISMA diagram, bilingual helpers (`L()`, `P()`, `Lh()`, `Lc()`) |
 | `app/textmetrics.R` | Text measures in base R: CSV reading (UTF-8 BOM / Shift-JIS), tokens, lexical diversity, articles, causal connectives, Krippendorff's α |
 | `app/writing.R` | Writing development tab |
+| `app/syntax.R` | Clause-based syntactic complexity (L2SCA measures from a udpipe dependency parse), loaded only when that box is ticked |
 | `app/vocabprofile.R`, `app/data/wordlists/` | Vocabulary profiling and its word lists (NGSL/TSL, CEFR-J, lemmas) |
 | `app/aut.R`, `app/aut_codebook.R` | AUT scoring tab and the Wahbeh codebook (with Japanese labels and keyword hints) |
 | `app/viz-writing.js` | Charts, AUT coding keys, and in-browser semantic distance (transformers.js) |
@@ -52,6 +53,7 @@ Load a CSV with **one paragraph per row** (`student_id, project, attempt, versio
 * **Counts**: words, types, sentences.
 * **Lexical diversity**: TTR, Guiraud's R, MATTR (50-word window), MTLD (McCarthy & Jarvis, 2010, or the TAALED convention), HD-D (42-word sample, 0–1 scale; ×42 for the sum some tools report). HD-D, MATTR and the TAALED MTLD match the Python `lexical_diversity` package.
 * **Sentence complexity proxies**: mean length of sentence, subordinators and coordinators per sentence. These are surface counts, not parsed clauses, so use them to compare texts processed the same way (e.g. ICNALE/NICE written vs. edited).
+* **Clause-based syntactic complexity** (off by default; tick it to use): the L2SCA counts and ratios of Lu (2010), computed from a Universal Dependencies parse with the `udpipe` R package and its English EWT model (~16 MB, downloaded from GitHub once per visit). The tab gives T-units, clauses, MLT, MLC, C/S, C/T, T/S, DC/C, DC/T, CT/T, CP/C, CP/T, CN/C, CN/T, VP/T, plus the number of sentence-opening signpost words ("First of all,", "In conclusion,") and MLT with those words removed. Signposts lengthen T-units without adding clauses, so compare the two MLTs when the teaching targets signposting. The rules follow the L2SCA Tregex definitions, so treat the values as close estimates of L2SCA rather than identical ones. On L2SCA's two sample texts the counts are within one or two units of the original. In the browser, `udpipe` is installed from the webR package repository when the box is ticked. If that fails, the tab says so and the other measures still work. In desktop R, run `install.packages("udpipe")` first.
 * **Articles**: the, a/an, rate per 100 words, and spelling-based a/an flags to check by hand.
 * **Causal connectives** after Halliday & Hasan (1976): every cell of the causal row, plus an optional "extended" set (thus, that's why…). Ambiguous words (so, then, for, otherwise) get rules and a review flag; the concordance CSV has a `keep` column for hand-checking.
 * **"I think"** count and rate.
